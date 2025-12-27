@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      run_integration:
+        description: 'Set to true to run integration tests after migrations'
+        required: false
+        default: 'false'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint --if-present
+      - name: Run tests
+        run: npm test --if-present
+
+  migrations:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup supabase CLI
+        uses: supabase/actions/setup@v1
+        with:
+          version: 'latest'
+      - name: Validate SUPABASE_DB_URL is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "ERROR: SUPABASE_DB_URL secret is not set. Set it in the repository secrets to apply migrations.";
+            exit 1;
+          fi
+      - name: Apply migrations (requires SUPABASE_DB_URL secret)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          supabase db push --db-url "$SUPABASE_DB_URL"
+
+  integration-tests:
+    needs: migrations
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate SUPABASE_SERVICE_ROLE & SUPABASE_URL
+        env:
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE" ] || [ -z "$SUPABASE_URL" ]; then
+            echo "ERROR: SUPABASE_SERVICE_ROLE or SUPABASE_URL secrets are not set. Add them to repository secrets to run integration tests.";
+            exit 1;
+          fi
+      - name: Run integration tests (requires SUPABASE_SERVICE_ROLE & SUPABASE_URL)
+        env:
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          npm run test:integration

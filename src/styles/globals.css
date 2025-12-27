@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Stars background */
+.bg-stars {
+  background-image: radial-gradient(#fff 1px, transparent 1px), radial-gradient(#fff 1px, transparent 1px);
+  background-size: 50px 50px, 100px 100px;
+  background-position: 0 0, 50px 50px;
+  animation: starMove 30s linear infinite;
+  opacity: 0.15;
+}
+
+@keyframes starMove {
+  from { transform: translateY(0); }
+  to { transform: translateY(-1000px); }
+}
+
+/* Mobile input fix (avoid zoom on focus) */
+input, textarea, select { font-size: 16px; }
+
+/* Safe area and cosmic theme colors */
+:root {
+  --bg-midnight: #1a1625;
+  --starlight-gold: #FFD700;
+  --aurora-green: #2ecc71;
+}
+
+/* Ensure content respects safe area on iOS */
+.app-safe-area { padding-bottom: env(safe-area-inset-bottom); }
+
